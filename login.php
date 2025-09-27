@@ -1,0 +1,118 @@
+<?php
+session_start();
+require_once 'config/database.php';
+
+$error_message = '';
+
+if ($_POST) {
+    $username = $_POST['username'] ?? '';
+    $password = $_POST['password'] ?? '';
+    
+    if (!empty($username) && !empty($password)) {
+        $database = new Database();
+        $db = $database->getConnection();
+        
+        $query = "SELECT id, username, password, role, first_name, last_name FROM users WHERE username = ?";
+        $stmt = $db->prepare($query);
+        $stmt->execute([$username]);
+        
+        if ($user = $stmt->fetch(PDO::FETCH_ASSOC)) {
+            if (password_verify($password, $user['password'])) {
+                $_SESSION['user_id'] = $user['id'];
+                $_SESSION['username'] = $user['username'];
+                $_SESSION['role'] = $user['role'];
+                $_SESSION['first_name'] = $user['first_name'];
+                $_SESSION['last_name'] = $user['last_name'];
+                
+                // Redirect based on role
+                switch ($user['role']) {
+                    case 'librarian':
+                        header('Location: librarian/dashboard.php');
+                        break;
+                    case 'staff':
+                        header('Location: staff/dashboard.php');
+                        break;
+                    case 'teacher':
+                        header('Location: teacher/dashboard.php');
+                        break;
+                    case 'student':
+                        header('Location: student/dashboard.php');
+                        break;
+                    default:
+                        $error_message = 'Invalid user role';
+                }
+                exit();
+            } else {
+                $error_message = 'Invalid username or password';
+            }
+        } else {
+            $error_message = 'Invalid username or password';
+        }
+    } else {
+        $error_message = 'Please fill in all fields';
+    }
+}
+?>
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Smart Library - Login</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdn.jsdelivr.net/npm/flowbite@2.2.1/dist/flowbite.min.css" rel="stylesheet" />
+</head>
+<body class="bg-gray-100 min-h-screen flex items-center justify-center">
+    <div class="max-w-md w-full space-y-8">
+        <div>
+            <h2 class="mt-6 text-center text-3xl font-extrabold text-gray-900">
+                Smart Library System
+            </h2>
+            <p class="mt-2 text-center text-sm text-gray-600">
+                Sign in to your account
+            </p>
+        </div>
+        
+        <form class="mt-8 space-y-6" method="POST">
+            <?php if ($error_message): ?>
+                <div class="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded">
+                    <?php echo htmlspecialchars($error_message); ?>
+                </div>
+            <?php endif; ?>
+            
+            <div class="rounded-md shadow-sm -space-y-px">
+                <div>
+                    <label for="username" class="sr-only">Username</label>
+                    <input id="username" name="username" type="text" required 
+                           class="appearance-none rounded-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-t-md focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 focus:z-10 sm:text-sm" 
+                           placeholder="Username">
+                </div>
+                <div>
+                    <label for="password" class="sr-only">Password</label>
+                    <input id="password" name="password" type="password" required 
+                           class="appearance-none rounded-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-b-md focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 focus:z-10 sm:text-sm" 
+                           placeholder="Password">
+                </div>
+            </div>
+
+            <div>
+                <button type="submit" 
+                        class="group relative w-full flex justify-center py-2 px-4 border border-transparent text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
+                    Sign in
+                </button>
+            </div>
+            
+            <div class="text-center text-sm text-gray-600">
+                <p>Demo Accounts:</p>
+                <p><strong>Librarian:</strong> librarian1 / password</p>
+                <p><strong>Staff:</strong> staff1 / password</p>
+                <p><strong>Teacher:</strong> teacher1 / password</p>
+                <p><strong>Student:</strong> student1 / password</p>
+            </div>
+        </form>
+    </div>
+    
+    <script src="https://cdn.jsdelivr.net/npm/flowbite@2.2.1/dist/flowbite.min.js"></script>
+</body>
+</html>
