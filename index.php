@@ -18,11 +18,11 @@ if (isset($_SESSION['user_id'])) {
             header('Location: student/dashboard.php');
             break;
         default:
-            header('Location: login.php');
+            header('Location: landing.php');
     }
     exit();
 } else {
-    header('Location: login.php');
+    header('Location: landing.php');
     exit();
 }
 ?>

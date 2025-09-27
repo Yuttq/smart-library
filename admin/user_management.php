@@ -59,7 +59,7 @@ if ($_POST) {
                 if ($result['success']) {
                     $message = $result['message'];
                 } else {
-                    $error = implode(', ', $result['errors']);
+                    $error = $result['message'];
                 }
             }
             break;

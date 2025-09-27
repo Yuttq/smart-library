@@ -349,13 +349,110 @@ $lost_books = $stmt->fetchAll(PDO::FETCH_ASSOC);
         }
 
         function viewTeacherBooks(userId) {
-            // This would open a modal or redirect to show teacher's active books
-            alert('View teacher books functionality - User ID: ' + userId);
+            // Get teacher's active books via AJAX
+            fetch(`get_user_books.php?user_id=${userId}&type=teacher`)
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        showBooksModal(data.books, 'Teacher');
+                    } else {
+                        alert('Error loading books: ' + data.message);
+                    }
+                })
+                .catch(error => {
+                    alert('Error: ' + error);
+                });
         }
 
         function viewStudentBooks(userId) {
-            // This would open a modal or redirect to show student's active books
-            alert('View student books functionality - User ID: ' + userId);
+            // Get student's active books via AJAX
+            fetch(`get_user_books.php?user_id=${userId}&type=student`)
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        showBooksModal(data.books, 'Student');
+                    } else {
+                        alert('Error loading books: ' + data.message);
+                    }
+                })
+                .catch(error => {
+                    alert('Error: ' + error);
+                });
+        }
+
+        function showBooksModal(books, userType) {
+            let modalContent = `
+                <div class="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
+                    <div class="relative top-20 mx-auto p-5 border w-3/4 shadow-lg rounded-md bg-white">
+                        <div class="mt-3">
+                            <h3 class="text-lg font-medium text-gray-900 mb-4">${userType} Active Books</h3>
+                            <div class="overflow-x-auto">
+                                <table class="min-w-full divide-y divide-gray-200">
+                                    <thead class="bg-gray-50">
+                                        <tr>
+                                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Book</th>
+                                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Borrowed Date</th>
+                                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Due Date</th>
+                                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody class="bg-white divide-y divide-gray-200">
+            `;
+            
+            if (books.length === 0) {
+                modalContent += `
+                    <tr>
+                        <td colspan="4" class="px-6 py-4 text-center text-gray-500">No active books</td>
+                    </tr>
+                `;
+            } else {
+                books.forEach(book => {
+                    const isOverdue = new Date(book.due_date) < new Date();
+                    modalContent += `
+                        <tr>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                                ${book.title}
+                                <br><span class="text-xs text-gray-400">by ${book.author}</span>
+                            </td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                                ${new Date(book.transaction_date).toLocaleDateString()}
+                            </td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                                ${new Date(book.due_date).toLocaleDateString()}
+                                ${isOverdue ? '<span class="text-red-600 text-xs">(Overdue)</span>' : ''}
+                            </td>
+                            <td class="px-6 py-4 whitespace-nowrap">
+                                <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${isOverdue ? 'bg-red-100 text-red-800' : 'bg-green-100 text-green-800'}">
+                                    ${isOverdue ? 'Overdue' : 'Active'}
+                                </span>
+                            </td>
+                        </tr>
+                    `;
+                });
+            }
+            
+            modalContent += `
+                                    </tbody>
+                                </table>
+                            </div>
+                            <div class="mt-4 flex justify-end">
+                                <button onclick="closeBooksModal()" class="bg-gray-300 text-gray-700 px-4 py-2 rounded hover:bg-gray-400">
+                                    Close
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
+            
+            document.body.insertAdjacentHTML('beforeend', modalContent);
+        }
+
+        function closeBooksModal() {
+            const modal = document.querySelector('.fixed.inset-0.bg-gray-600');
+            if (modal) {
+                modal.remove();
+            }
         }
     </script>
 </body>

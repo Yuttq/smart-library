@@ -249,28 +249,34 @@ $active_borrows = $stmt->fetchAll(PDO::FETCH_ASSOC);
             <form method="POST" class="grid grid-cols-1 gap-4 sm:grid-cols-3">
                 <input type="hidden" name="action" value="borrow">
                 <div>
-                    <label for="user_id" class="block text-sm font-medium text-gray-700">User</label>
+                    <label for="user_search" class="block text-sm font-medium text-gray-700">Search User</label>
+                    <input type="text" id="user_search" placeholder="Type to search users..." 
+                           class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm">
                     <select name="user_id" id="user_id" required 
-                            class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm">
+                            class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm" style="display: none;">
                         <option value="">Select User</option>
                         <?php foreach ($users as $user): ?>
-                            <option value="<?php echo $user['id']; ?>">
+                            <option value="<?php echo $user['id']; ?>" data-name="<?php echo htmlspecialchars($user['first_name'] . ' ' . $user['last_name'] . ' (' . ucfirst($user['role']) . ')'); ?>">
                                 <?php echo htmlspecialchars($user['first_name'] . ' ' . $user['last_name'] . ' (' . ucfirst($user['role']) . ')'); ?>
                             </option>
                         <?php endforeach; ?>
                     </select>
+                    <div id="user_dropdown" class="absolute z-10 mt-1 w-full bg-white shadow-lg max-h-60 rounded-md py-1 text-base ring-1 ring-black ring-opacity-5 overflow-auto focus:outline-none sm:text-sm" style="display: none;"></div>
                 </div>
                 <div>
-                    <label for="book_id" class="block text-sm font-medium text-gray-700">Book</label>
+                    <label for="book_search" class="block text-sm font-medium text-gray-700">Search Book</label>
+                    <input type="text" id="book_search" placeholder="Type to search books..." 
+                           class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm">
                     <select name="book_id" id="book_id" required 
-                            class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm">
+                            class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm" style="display: none;">
                         <option value="">Select Book</option>
                         <?php foreach ($available_books as $book): ?>
-                            <option value="<?php echo $book['id']; ?>">
+                            <option value="<?php echo $book['id']; ?>" data-name="<?php echo htmlspecialchars($book['title'] . ' by ' . $book['author']); ?>">
                                 <?php echo htmlspecialchars($book['title'] . ' by ' . $book['author']); ?>
                             </option>
                         <?php endforeach; ?>
                     </select>
+                    <div id="book_dropdown" class="absolute z-10 mt-1 w-full bg-white shadow-lg max-h-60 rounded-md py-1 text-base ring-1 ring-black ring-opacity-5 overflow-auto focus:outline-none sm:text-sm" style="display: none;"></div>
                 </div>
                 <div class="flex items-end">
                     <button type="submit" class="w-full bg-indigo-600 text-white px-4 py-2 rounded hover:bg-indigo-700">
@@ -330,5 +336,85 @@ $active_borrows = $stmt->fetchAll(PDO::FETCH_ASSOC);
             </div>
         </div>
     </div>
+
+    <script>
+        // User search functionality
+        const userSearch = document.getElementById('user_search');
+        const userSelect = document.getElementById('user_id');
+        const userDropdown = document.getElementById('user_dropdown');
+        const userOptions = Array.from(userSelect.options);
+
+        userSearch.addEventListener('input', function() {
+            const searchTerm = this.value.toLowerCase();
+            const filteredUsers = userOptions.filter(option => 
+                option.textContent.toLowerCase().includes(searchTerm)
+            );
+
+            userDropdown.innerHTML = '';
+            
+            if (searchTerm.length > 0) {
+                userDropdown.style.display = 'block';
+                filteredUsers.forEach(option => {
+                    if (option.value !== '') {
+                        const div = document.createElement('div');
+                        div.className = 'cursor-pointer select-none relative py-2 pl-3 pr-9 hover:bg-indigo-50';
+                        div.textContent = option.textContent;
+                        div.onclick = function() {
+                            userSelect.value = option.value;
+                            userSearch.value = option.textContent;
+                            userDropdown.style.display = 'none';
+                        };
+                        userDropdown.appendChild(div);
+                    }
+                });
+            } else {
+                userDropdown.style.display = 'none';
+            }
+        });
+
+        // Book search functionality
+        const bookSearch = document.getElementById('book_search');
+        const bookSelect = document.getElementById('book_id');
+        const bookDropdown = document.getElementById('book_dropdown');
+        const bookOptions = Array.from(bookSelect.options);
+
+        bookSearch.addEventListener('input', function() {
+            const searchTerm = this.value.toLowerCase();
+            const filteredBooks = bookOptions.filter(option => 
+                option.textContent.toLowerCase().includes(searchTerm)
+            );
+
+            bookDropdown.innerHTML = '';
+            
+            if (searchTerm.length > 0) {
+                bookDropdown.style.display = 'block';
+                filteredBooks.forEach(option => {
+                    if (option.value !== '') {
+                        const div = document.createElement('div');
+                        div.className = 'cursor-pointer select-none relative py-2 pl-3 pr-9 hover:bg-indigo-50';
+                        div.textContent = option.textContent;
+                        div.onclick = function() {
+                            bookSelect.value = option.value;
+                            bookSearch.value = option.textContent;
+                            bookDropdown.style.display = 'none';
+                        };
+                        bookDropdown.appendChild(div);
+                    }
+                });
+            } else {
+                bookDropdown.style.display = 'none';
+            }
+        });
+
+        // Hide dropdowns when clicking outside
+        document.addEventListener('click', function(e) {
+            if (!e.target.closest('#user_search') && !e.target.closest('#user_dropdown')) {
+                userDropdown.style.display = 'none';
+            }
+            if (!e.target.closest('#book_search') && !e.target.closest('#book_dropdown')) {
+                bookDropdown.style.display = 'none';
+            }
+        });
+    </script>
 </body>
 </html>
