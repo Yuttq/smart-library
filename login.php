@@ -109,6 +109,8 @@ if ($_POST) {
                 <p><strong>Staff:</strong> staff1 / password</p>
                 <p><strong>Teacher:</strong> teacher1 / password</p>
                 <p><strong>Student:</strong> student1 / password</p>
+                <br>
+                <p>Don't have an account? <a href="register.php" class="text-indigo-600 hover:text-indigo-500 font-medium">Register here</a></p>
             </div>
         </form>
     </div>

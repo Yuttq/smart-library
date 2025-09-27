@@ -1,6 +1,7 @@
 <?php
 session_start();
 require_once '../config/database.php';
+require_once '../config/semester_manager.php';
 
 // Check if user is logged in and is a student
 if (!isset($_SESSION['user_id']) || $_SESSION['role'] !== 'student') {
@@ -10,6 +11,8 @@ if (!isset($_SESSION['user_id']) || $_SESSION['role'] !== 'student') {
 
 $database = new Database();
 $db = $database->getConnection();
+$semesterManager = new SemesterManager();
+$current_semester = $semesterManager->getCurrentSemester();
 
 // Handle reservations
 if ($_POST) {
@@ -32,10 +35,10 @@ if ($_POST) {
                 $stmt->execute([$_SESSION['user_id'], $book_id]);
                 
                 if (!$stmt->fetch()) {
-                    // Create reservation
-                    $query = "INSERT INTO reservations (user_id, book_id) VALUES (?, ?)";
+                    // Create reservation with semester
+                    $query = "INSERT INTO reservations (user_id, book_id, semester_id) VALUES (?, ?, ?)";
                     $stmt = $db->prepare($query);
-                    $stmt->execute([$_SESSION['user_id'], $book_id]);
+                    $stmt->execute([$_SESSION['user_id'], $book_id, $current_semester['id']]);
                     
                     // Update book status
                     $query = "UPDATE books SET status = 'reserved' WHERE id = ?";
@@ -93,32 +96,29 @@ $stmt = $db->prepare($query);
 $stmt->execute();
 $available_books = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
-// Get user's active reservations
+// Get user's active reservations for current semester
 $query = "SELECT r.*, b.title, b.author 
           FROM reservations r 
           JOIN books b ON r.book_id = b.id 
-          WHERE r.user_id = ? AND r.status = 'active' 
+          WHERE r.user_id = ? AND r.semester_id = ? AND r.status = 'active' 
           ORDER BY r.reservation_date DESC";
 $stmt = $db->prepare($query);
-$stmt->execute([$_SESSION['user_id']]);
+$stmt->execute([$_SESSION['user_id'], $current_semester['id']]);
 $reservations = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
-// Get user's borrowed books
+// Get user's borrowed books for current semester
 $query = "SELECT t.*, b.title, b.author, t.due_date 
           FROM transactions t 
           JOIN books b ON t.book_id = b.id 
-          WHERE t.user_id = ? AND t.transaction_type = 'borrow' AND t.status = 'active' 
+          WHERE t.user_id = ? AND t.semester_id = ? AND t.transaction_type = 'borrow' AND t.status = 'active' 
           ORDER BY t.transaction_date DESC";
 $stmt = $db->prepare($query);
-$stmt->execute([$_SESSION['user_id']]);
+$stmt->execute([$_SESSION['user_id'], $current_semester['id']]);
 $borrowed_books = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
-// Check borrowing limit
-$query = "SELECT COUNT(*) as count FROM transactions WHERE user_id = ? AND transaction_type = 'borrow' AND status = 'active'";
-$stmt = $db->prepare($query);
-$stmt->execute([$_SESSION['user_id']]);
-$borrow_count = $stmt->fetch(PDO::FETCH_ASSOC)['count'];
-$can_borrow = $borrow_count < 3;
+// Check borrowing limit for current semester
+$borrow_count = $semesterManager->getStudentBorrowingCount($_SESSION['user_id'], $current_semester['id']);
+$can_borrow = $semesterManager->canStudentBorrow($_SESSION['user_id'], $current_semester['id']);
 ?>
 
 <!DOCTYPE html>
@@ -159,24 +159,57 @@ $can_borrow = $borrow_count < 3;
             </div>
         <?php endif; ?>
 
-        <!-- Borrowing Status -->
+        <!-- Current Semester Info -->
         <div class="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
             <div class="flex">
                 <div class="flex-shrink-0">
                     <svg class="h-5 w-5 text-blue-400" viewBox="0 0 20 20" fill="currentColor">
-                        <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd" />
+                        <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-12a1 1 0 10-2 0v4a1 1 0 00.293.707l2.828 2.829a1 1 0 101.415-1.415L11 9.586V6z" clip-rule="evenodd" />
                     </svg>
                 </div>
                 <div class="ml-3">
                     <h3 class="text-sm font-medium text-blue-800">
-                        Borrowing Status
+                        Current Semester: <?php echo htmlspecialchars($current_semester['name']); ?>
                     </h3>
                     <div class="mt-2 text-sm text-blue-700">
+                        <p>Period: <?php echo date('M d, Y', strtotime($current_semester['start_date'])); ?> - <?php echo date('M d, Y', strtotime($current_semester['end_date'])); ?></p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Borrowing Status -->
+        <div class="bg-green-50 border border-green-200 rounded-lg p-4 mb-6">
+            <div class="flex">
+                <div class="flex-shrink-0">
+                    <svg class="h-5 w-5 text-green-400" viewBox="0 0 20 20" fill="currentColor">
+                        <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd" />
+                    </svg>
+                </div>
+                <div class="ml-3">
+                    <h3 class="text-sm font-medium text-green-800">
+                        Borrowing Status (This Semester)
+                    </h3>
+                    <div class="mt-2 text-sm text-green-700">
                         <p>Books borrowed: <?php echo $borrow_count; ?>/3</p>
                         <?php if (!$can_borrow): ?>
-                            <p class="text-red-600 font-medium">You have reached the maximum borrowing limit (3 books)</p>
+                            <p class="text-red-600 font-medium">You have reached the maximum borrowing limit (3 books per semester)</p>
+                        <?php else: ?>
+                            <p class="text-green-600 font-medium">You can borrow <?php echo (3 - $borrow_count); ?> more book(s) this semester</p>
                         <?php endif; ?>
                     </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Quick Actions -->
+        <div class="bg-white shadow rounded-lg p-6 mb-6">
+            <div class="flex justify-between items-center">
+                <h2 class="text-lg font-medium text-gray-900">Quick Actions</h2>
+                <div class="space-x-4">
+                    <a href="fines.php" class="bg-red-600 text-white px-4 py-2 rounded hover:bg-red-700">
+                        View My Fines
+                    </a>
                 </div>
             </div>
         </div>

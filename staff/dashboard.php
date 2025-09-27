@@ -1,6 +1,7 @@
 <?php
 session_start();
 require_once '../config/database.php';
+require_once '../config/semester_manager.php';
 
 // Check if user is logged in and is staff
 if (!isset($_SESSION['user_id']) || $_SESSION['role'] !== 'staff') {
@@ -10,6 +11,8 @@ if (!isset($_SESSION['user_id']) || $_SESSION['role'] !== 'staff') {
 
 $database = new Database();
 $db = $database->getConnection();
+$semesterManager = new SemesterManager();
+$current_semester = $semesterManager->getCurrentSemester();
 
 // Handle transactions
 if ($_POST) {
@@ -29,14 +32,10 @@ if ($_POST) {
                 
                 if ($user) {
                     if ($user['role'] === 'student') {
-                        // Check if student has less than 3 active borrows
-                        $query = "SELECT COUNT(*) as count FROM transactions WHERE user_id = ? AND transaction_type = 'borrow' AND status = 'active'";
-                        $stmt = $db->prepare($query);
-                        $stmt->execute([$user_id]);
-                        $result = $stmt->fetch(PDO::FETCH_ASSOC);
-                        
-                        if ($result['count'] >= 3) {
-                            $error_message = "Student has reached the maximum borrowing limit (3 books)";
+                        // Check if student can borrow more books this semester
+                        $current_borrow_count = $semesterManager->getStudentBorrowingCount($user_id, $current_semester['id']);
+                        if ($current_borrow_count >= 3) {
+                            $error_message = "Student has reached the maximum borrowing limit (3 books per semester). Current: {$current_borrow_count}/3";
                         } else {
                             // Proceed with borrowing
                             $due_date = date('Y-m-d', strtotime('+14 days')); // 14 days from now
@@ -49,10 +48,10 @@ if ($_POST) {
                                 $stmt->execute([$book_id]);
                                 
                                 if ($stmt->rowCount() > 0) {
-                                    // Create transaction record
-                                    $query = "INSERT INTO transactions (user_id, book_id, transaction_type, due_date) VALUES (?, ?, 'borrow', ?)";
+                                    // Create transaction record with semester
+                                    $query = "INSERT INTO transactions (user_id, book_id, semester_id, transaction_type, due_date) VALUES (?, ?, ?, 'borrow', ?)";
                                     $stmt = $db->prepare($query);
-                                    $stmt->execute([$user_id, $book_id, $due_date]);
+                                    $stmt->execute([$user_id, $book_id, $current_semester['id'], $due_date]);
                                     
                                     $db->commit();
                                     $success_message = "Book borrowed successfully! Due date: " . $due_date;
@@ -77,10 +76,10 @@ if ($_POST) {
                             $stmt->execute([$book_id]);
                             
                             if ($stmt->rowCount() > 0) {
-                                // Create transaction record
-                                $query = "INSERT INTO transactions (user_id, book_id, transaction_type, due_date) VALUES (?, ?, 'borrow', ?)";
+                                // Create transaction record with semester
+                                $query = "INSERT INTO transactions (user_id, book_id, semester_id, transaction_type, due_date) VALUES (?, ?, ?, 'borrow', ?)";
                                 $stmt = $db->prepare($query);
-                                $stmt->execute([$user_id, $book_id, $due_date]);
+                                $stmt->execute([$user_id, $book_id, $current_semester['id'], $due_date]);
                                 
                                 $db->commit();
                                 $success_message = "Book borrowed successfully! Due date: " . $due_date;
@@ -120,14 +119,14 @@ if ($_POST) {
                         $stmt->execute([$transaction['book_id']]);
                         
                         // Update transaction status
-                        $query = "UPDATE transactions SET status = 'completed' WHERE id = ?";
+                        $query = "UPDATE transactions SET status = 'completed', return_date = NOW() WHERE id = ?";
                         $stmt = $db->prepare($query);
                         $stmt->execute([$transaction_id]);
                         
-                        // Create return transaction record
-                        $query = "INSERT INTO transactions (user_id, book_id, transaction_type, status) VALUES (?, ?, 'return', 'completed')";
+                        // Create return transaction record with semester_id
+                        $query = "INSERT INTO transactions (user_id, book_id, semester_id, transaction_type, status) VALUES (?, ?, ?, 'return', 'completed')";
                         $stmt = $db->prepare($query);
-                        $stmt->execute([$transaction['user_id'], $transaction['book_id']]);
+                        $stmt->execute([$transaction['user_id'], $transaction['book_id'], $transaction['semester_id']]);
                         
                         $db->commit();
                         $success_message = "Book returned successfully!";
@@ -156,15 +155,16 @@ $stmt = $db->prepare($query);
 $stmt->execute();
 $available_books = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
-// Get active borrows
-$query = "SELECT t.*, u.first_name, u.last_name, u.role, b.title, b.author 
+// Get active borrows for current semester
+$query = "SELECT t.*, u.first_name, u.last_name, u.role, b.title, b.author, b.price, s.name as semester_name
           FROM transactions t 
           JOIN users u ON t.user_id = u.id 
           JOIN books b ON t.book_id = b.id 
-          WHERE t.transaction_type = 'borrow' AND t.status = 'active' 
+          JOIN semesters s ON t.semester_id = s.id
+          WHERE t.transaction_type = 'borrow' AND t.status = 'active' AND t.semester_id = ?
           ORDER BY t.transaction_date DESC";
 $stmt = $db->prepare($query);
-$stmt->execute();
+$stmt->execute([$current_semester['id']]);
 $active_borrows = $stmt->fetchAll(PDO::FETCH_ASSOC);
 ?>
 
@@ -205,6 +205,43 @@ $active_borrows = $stmt->fetchAll(PDO::FETCH_ASSOC);
                 <?php echo htmlspecialchars($error_message); ?>
             </div>
         <?php endif; ?>
+
+        <!-- Current Semester Info -->
+        <div class="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
+            <div class="flex">
+                <div class="flex-shrink-0">
+                    <svg class="h-5 w-5 text-blue-400" viewBox="0 0 20 20" fill="currentColor">
+                        <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-12a1 1 0 10-2 0v4a1 1 0 00.293.707l2.828 2.829a1 1 0 101.415-1.415L11 9.586V6z" clip-rule="evenodd" />
+                    </svg>
+                </div>
+                <div class="ml-3">
+                    <h3 class="text-sm font-medium text-blue-800">
+                        Current Semester: <?php echo htmlspecialchars($current_semester['name']); ?>
+                    </h3>
+                    <div class="mt-2 text-sm text-blue-700">
+                        <p>Period: <?php echo date('M d, Y', strtotime($current_semester['start_date'])); ?> - <?php echo date('M d, Y', strtotime($current_semester['end_date'])); ?></p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Quick Actions -->
+        <div class="bg-white shadow rounded-lg p-6 mb-6">
+            <div class="flex justify-between items-center">
+                <h2 class="text-lg font-medium text-gray-900">Quick Actions</h2>
+                <div class="space-x-4">
+                    <a href="clearance_management.php" class="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700">
+                        Manage Clearance
+                    </a>
+                    <a href="../admin/user_management.php" class="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700">
+                        Manage Users
+                    </a>
+                    <a href="penalty_management.php" class="bg-red-600 text-white px-4 py-2 rounded hover:bg-red-700">
+                        Manage Penalties
+                    </a>
+                </div>
+            </div>
+        </div>
 
         <!-- Borrow Book Form -->
         <div class="bg-white shadow rounded-lg p-6 mb-6">

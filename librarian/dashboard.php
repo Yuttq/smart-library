@@ -22,10 +22,23 @@ if ($_POST) {
             $isbn = $_POST['isbn'] ?? '';
             
             if (!empty($title) && !empty($author)) {
-                $query = "INSERT INTO books (title, author, isbn) VALUES (?, ?, ?)";
-                $stmt = $db->prepare($query);
-                $stmt->execute([$title, $author, $isbn]);
-                $success_message = "Book added successfully!";
+                try {
+                    // Handle empty ISBN
+                    $isbn = !empty($isbn) ? $isbn : null;
+                    
+                    $query = "INSERT INTO books (title, author, isbn) VALUES (?, ?, ?)";
+                    $stmt = $db->prepare($query);
+                    $stmt->execute([$title, $author, $isbn]);
+                    $success_message = "Book added successfully!";
+                } catch (PDOException $e) {
+                    if ($e->getCode() == 23000) {
+                        $error_message = "A book with this ISBN already exists. Please use a different ISBN or leave it blank.";
+                    } else {
+                        $error_message = "Error adding book: " . $e->getMessage();
+                    }
+                }
+            } else {
+                $error_message = "Title and Author are required fields.";
             }
             break;
             
@@ -36,10 +49,23 @@ if ($_POST) {
             $isbn = $_POST['isbn'] ?? '';
             
             if (!empty($book_id) && !empty($title) && !empty($author)) {
-                $query = "UPDATE books SET title = ?, author = ?, isbn = ? WHERE id = ?";
-                $stmt = $db->prepare($query);
-                $stmt->execute([$title, $author, $isbn, $book_id]);
-                $success_message = "Book updated successfully!";
+                try {
+                    // Handle empty ISBN
+                    $isbn = !empty($isbn) ? $isbn : null;
+                    
+                    $query = "UPDATE books SET title = ?, author = ?, isbn = ? WHERE id = ?";
+                    $stmt = $db->prepare($query);
+                    $stmt->execute([$title, $author, $isbn, $book_id]);
+                    $success_message = "Book updated successfully!";
+                } catch (PDOException $e) {
+                    if ($e->getCode() == 23000) {
+                        $error_message = "A book with this ISBN already exists. Please use a different ISBN or leave it blank.";
+                    } else {
+                        $error_message = "Error updating book: " . $e->getMessage();
+                    }
+                }
+            } else {
+                $error_message = "Book ID, Title and Author are required fields.";
             }
             break;
             
@@ -94,6 +120,24 @@ $books = $stmt->fetchAll(PDO::FETCH_ASSOC);
                 <?php echo htmlspecialchars($success_message); ?>
             </div>
         <?php endif; ?>
+
+        <?php if (isset($error_message)): ?>
+            <div class="mb-4 bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded">
+                <?php echo htmlspecialchars($error_message); ?>
+            </div>
+        <?php endif; ?>
+
+        <!-- Quick Actions -->
+        <div class="bg-white shadow rounded-lg p-6 mb-6">
+            <div class="flex justify-between items-center">
+                <h2 class="text-lg font-medium text-gray-900">Quick Actions</h2>
+                <div class="space-x-4">
+                    <a href="../admin/user_management.php" class="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700">
+                        Manage Users
+                    </a>
+                </div>
+            </div>
+        </div>
 
         <!-- Add Book Form -->
         <div class="bg-white shadow rounded-lg p-6 mb-6">

@@ -1,6 +1,7 @@
 <?php
 session_start();
 require_once '../config/database.php';
+require_once '../config/semester_manager.php';
 
 // Check if user is logged in and is a teacher
 if (!isset($_SESSION['user_id']) || $_SESSION['role'] !== 'teacher') {
@@ -10,6 +11,8 @@ if (!isset($_SESSION['user_id']) || $_SESSION['role'] !== 'teacher') {
 
 $database = new Database();
 $db = $database->getConnection();
+$semesterManager = new SemesterManager();
+$current_semester = $semesterManager->getCurrentSemester();
 
 // Handle reservations
 if ($_POST) {
@@ -32,10 +35,10 @@ if ($_POST) {
                 $stmt->execute([$_SESSION['user_id'], $book_id]);
                 
                 if (!$stmt->fetch()) {
-                    // Create reservation
-                    $query = "INSERT INTO reservations (user_id, book_id) VALUES (?, ?)";
+                    // Create reservation with semester
+                    $query = "INSERT INTO reservations (user_id, book_id, semester_id) VALUES (?, ?, ?)";
                     $stmt = $db->prepare($query);
-                    $stmt->execute([$_SESSION['user_id'], $book_id]);
+                    $stmt->execute([$_SESSION['user_id'], $book_id, $current_semester['id']]);
                     
                     // Update book status
                     $query = "UPDATE books SET status = 'reserved' WHERE id = ?";
@@ -93,24 +96,24 @@ $stmt = $db->prepare($query);
 $stmt->execute();
 $available_books = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
-// Get user's active reservations
+// Get user's active reservations for current semester
 $query = "SELECT r.*, b.title, b.author 
           FROM reservations r 
           JOIN books b ON r.book_id = b.id 
-          WHERE r.user_id = ? AND r.status = 'active' 
+          WHERE r.user_id = ? AND r.semester_id = ? AND r.status = 'active' 
           ORDER BY r.reservation_date DESC";
 $stmt = $db->prepare($query);
-$stmt->execute([$_SESSION['user_id']]);
+$stmt->execute([$_SESSION['user_id'], $current_semester['id']]);
 $reservations = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
-// Get user's borrowed books
+// Get user's borrowed books for current semester
 $query = "SELECT t.*, b.title, b.author, t.due_date 
           FROM transactions t 
           JOIN books b ON t.book_id = b.id 
-          WHERE t.user_id = ? AND t.transaction_type = 'borrow' AND t.status = 'active' 
+          WHERE t.user_id = ? AND t.semester_id = ? AND t.transaction_type = 'borrow' AND t.status = 'active' 
           ORDER BY t.transaction_date DESC";
 $stmt = $db->prepare($query);
-$stmt->execute([$_SESSION['user_id']]);
+$stmt->execute([$_SESSION['user_id'], $current_semester['id']]);
 $borrowed_books = $stmt->fetchAll(PDO::FETCH_ASSOC);
 ?>
 
@@ -151,6 +154,18 @@ $borrowed_books = $stmt->fetchAll(PDO::FETCH_ASSOC);
                 <?php echo htmlspecialchars($error_message); ?>
             </div>
         <?php endif; ?>
+
+        <!-- Quick Actions -->
+        <div class="bg-white shadow rounded-lg p-6 mb-6">
+            <div class="flex justify-between items-center">
+                <h2 class="text-lg font-medium text-gray-900">Quick Actions</h2>
+                <div class="space-x-4">
+                    <a href="fines.php" class="bg-red-600 text-white px-4 py-2 rounded hover:bg-red-700">
+                        View My Fines
+                    </a>
+                </div>
+            </div>
+        </div>
 
         <!-- My Borrowed Books -->
         <div class="bg-white shadow rounded-lg mb-6">

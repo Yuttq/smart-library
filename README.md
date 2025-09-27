@@ -29,6 +29,26 @@ A simple library management system built with PHP, MySQL, and Tailwind CSS.
 - Cancel reservations
 - Automatic status management
 
+### 💰 Penalty & Fine Management (NEW!)
+- **Automatic penalty calculation** based on overdue days and user role
+- **Role-based penalty rates**: Students (₱10/day, max ₱500), Teachers (₱5/day, max ₱250)
+- **Grace periods**: 3 days for students, 5 days for teachers
+- **Staff penalty management dashboard** with payment processing
+- **User fines viewing** for students and teachers
+- **Penalty waiver system** for staff
+- **Automated overdue status updates** via cron job
+- **Comprehensive penalty statistics** and reporting
+
+### 👥 User Registration & Management (NEW!)
+- **Public registration system** for students and teachers
+- **Comprehensive user validation** with real-time feedback
+- **Admin user management dashboard** for librarians and staff
+- **User search and filtering** with pagination
+- **User status management** (activate/deactivate accounts)
+- **Role-based user creation** and editing
+- **User statistics and analytics** dashboard
+- **Secure password handling** with proper validation
+
 ## Tech Stack
 - **Backend**: PHP 7.4+
 - **Database**: MySQL 5.7+
@@ -42,7 +62,7 @@ A simple library management system built with PHP, MySQL, and Tailwind CSS.
 2. Open phpMyAdmin (http://localhost/phpmyadmin)
 3. Import the database schema:
    - Go to "Import" tab
-   - Choose file: `database/schema.sql`
+   - Choose file: `database/schema_v2.sql` (includes penalty system)
    - Click "Go" to import
 
 ### 2. Project Setup
@@ -91,46 +111,87 @@ The system comes with pre-configured demo accounts:
 ```
 smart-library/
 ├── config/
-│   └── database.php          # Database connection
+│   ├── database.php          # Database connection
+│   ├── penalty_manager.php   # Penalty calculation and management
+│   └── user_manager.php      # User registration and management
 ├── database/
-│   └── schema.sql            # Database schema and sample data
+│   ├── schema.sql            # Original database schema (MVP)
+│   └── schema_v2.sql         # Enhanced schema with penalty system
+├── cron/
+│   └── update_overdue.php    # Automated overdue status update
+├── admin/
+│   └── user_management.php   # User management dashboard
 ├── librarian/
 │   └── dashboard.php         # Librarian interface
 ├── staff/
-│   └── dashboard.php         # Staff interface
+│   ├── dashboard.php         # Staff interface
+│   └── penalty_management.php # Penalty management dashboard
 ├── teacher/
-│   └── dashboard.php         # Teacher interface
+│   ├── dashboard.php         # Teacher interface
+│   └── fines.php             # Teacher fines viewing
 ├── student/
-│   └── dashboard.php         # Student interface
+│   ├── dashboard.php         # Student interface
+│   └── fines.php             # Student fines viewing
 ├── index.php                 # Main entry point
 ├── login.php                 # Login page
+├── register.php              # User registration page
 ├── logout.php                # Logout handler
 └── README.md                 # This file
 ```
 
-## MVP Status
-✅ **Phase 1 Complete** - All core MVP features implemented:
+## Development Status
+✅ **Phase 1 Complete** - MVP features implemented:
 - Login system with role-based access
 - Book inventory management (Librarian)
 - Borrow/Return transactions (Staff)
 - Reservation system (Students/Teachers)
 - Clean, simple UI with Tailwind CSS
 
-## Future Enhancements (Not in MVP)
-- Penalty calculation & clearance
+✅ **Phase 2 Complete** - Penalty & Fine Management:
+- Automatic penalty calculation system
+- Role-based penalty rates and grace periods
+- Staff penalty management dashboard
+- User fines viewing (Students/Teachers)
+- Penalty payment and waiver processing
+- Automated overdue status updates
+
+✅ **Phase 3 Complete** - User Registration & Management:
+- Public user registration system
+- Comprehensive user validation
+- Admin user management dashboard
+- User search and pagination
+- User status management
+- Role-based user creation
+- User statistics and analytics
+
+## Future Enhancements (Phase 4+)
 - Semester-end clearance check
-- Full user registration system
-- Reports & analytics
+- Reports & analytics dashboard
 - Advanced UI with animations
-- Email notifications
-- Book categories and search
-- Fine management system
+- Email notifications for due dates
+- Book categories and advanced search
+- Enhanced fine management features
+- User profile management
+- Library statistics and insights
+- Bulk user import/export
+- Advanced reporting features
 
 ## Testing the System
-1. Login as Librarian to add some books
-2. Login as Staff to process borrowing transactions
-3. Login as Student/Teacher to test reservations
-4. Test the borrowing limits (students max 3 books)
-5. Test the return process through Staff interface
+1. **Setup**: Import `database/schema_v2.sql` into MySQL via phpMyAdmin
+2. **Basic Flow**:
+   - Login as Librarian → Add some books
+   - Login as Staff → Process borrowing transactions
+   - Login as Student/Teacher → Test reservations
+3. **User Registration Testing**:
+   - Visit `register.php` to test public registration
+   - Login as Librarian/Staff → Go to "Manage Users" to test admin features
+   - Test user search, editing, and status management
+   - View user statistics dashboard
+4. **Penalty System Testing**:
+   - Create overdue transactions (manually set due dates in database)
+   - Login as Staff → Go to "Manage Penalties" to view overdue books
+   - Test penalty calculation and payment processing
+   - Login as Student/Teacher → View "My Fines" to see outstanding penalties
+5. **Automation**: Set up cron job for `cron/update_overdue.php` to run daily
 
-The system is now ready for demonstration and testing!
+The system is now ready for demonstration and testing with full user management and penalty systems!
