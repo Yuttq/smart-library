@@ -114,6 +114,20 @@ class Transaction {
             ]);
             
             $this->id = $this->db->lastInsertId();
+            
+            // If this is a borrow transaction, update book status and cancel reservations
+            if ($this->transactionType === 'borrow') {
+                // Update book status to borrowed
+                $query = "UPDATE books SET status = 'borrowed' WHERE id = ?";
+                $stmt = $this->db->prepare($query);
+                $stmt->execute([$this->bookId]);
+                
+                // Cancel any active reservations for this book
+                $query = "UPDATE reservations SET status = 'cancelled' WHERE book_id = ? AND status = 'active'";
+                $stmt = $this->db->prepare($query);
+                $stmt->execute([$this->bookId]);
+            }
+            
             $this->db->commit();
             
             return ['success' => true, 'transaction_id' => $this->id, 'message' => 'Transaction created successfully!'];
@@ -143,6 +157,13 @@ class Transaction {
                 $this->id
             ]);
             
+            // If completing a transaction, update book status to available
+            if ($this->status === 'completed') {
+                $query = "UPDATE books SET status = 'available' WHERE id = ?";
+                $stmt = $this->db->prepare($query);
+                $stmt->execute([$this->bookId]);
+            }
+            
             $this->db->commit();
             
             return ['success' => true, 'message' => 'Transaction updated successfully!'];
@@ -158,48 +179,33 @@ class Transaction {
      */
     public function borrowBook($userId, $bookId, $semesterId, $userRole) {
         try {
-            $this->db->beginTransaction();
-            
             // Set due date based on user role
             $dueDate = $userRole === 'student' ? 
                 date('Y-m-d', strtotime('+14 days')) : 
                 date('Y-m-d', strtotime('+30 days'));
             
-            // Update book status
-            $query = "UPDATE books SET status = 'borrowed' WHERE id = ? AND status = 'available'";
+            // Check if book is available
+            $query = "SELECT status FROM books WHERE id = ?";
             $stmt = $this->db->prepare($query);
             $stmt->execute([$bookId]);
+            $book = $stmt->fetch(PDO::FETCH_ASSOC);
             
-            if ($stmt->rowCount() > 0) {
-                // Create transaction record
-                $this->userId = $userId;
-                $this->bookId = $bookId;
-                $this->semesterId = $semesterId;
-                $this->transactionType = 'borrow';
-                $this->status = 'active';
-                $this->dueDate = $dueDate;
-                
-                $result = $this->insert();
-                
-                if ($result['success']) {
-                    // Cancel any active reservations for this book
-                    $query = "UPDATE reservations SET status = 'cancelled' WHERE book_id = ? AND status = 'active'";
-                    $stmt = $this->db->prepare($query);
-                    $stmt->execute([$bookId]);
-                    
-                    $this->db->commit();
-                    return $result;
-                } else {
-                    $this->db->rollback();
-                    return $result;
-                }
-            } else {
-                $this->db->rollback();
+            if (!$book || $book['status'] !== 'available') {
                 return ['success' => false, 'errors' => ['general' => 'Book is no longer available']];
             }
             
+            // Create transaction record
+            $this->userId = $userId;
+            $this->bookId = $bookId;
+            $this->semesterId = $semesterId;
+            $this->transactionType = 'borrow';
+            $this->status = 'active';
+            $this->dueDate = $dueDate;
+            
+            $result = $this->insert();
+            return $result;
+            
         } catch (Exception $e) {
-            $this->db->rollback();
             return ['success' => false, 'errors' => ['general' => 'Error processing borrowing: ' . $e->getMessage()]];
         }
     }
@@ -209,44 +215,29 @@ class Transaction {
      */
     public function returnBook() {
         try {
-            $this->db->beginTransaction();
+            // Update transaction status
+            $this->status = 'completed';
+            $this->returnDate = date('Y-m-d H:i:s');
             
-            // Update book status
-            $query = "UPDATE books SET status = 'available' WHERE id = ?";
-            $stmt = $this->db->prepare($query);
-            $stmt->execute([$this->bookId]);
+            $result = $this->update();
             
-            if ($stmt->rowCount() > 0) {
-                // Update transaction status
-                $this->status = 'completed';
-                $this->returnDate = date('Y-m-d H:i:s');
+            if ($result['success']) {
+                // Create return transaction record
+                $returnTransaction = new Transaction($this->db);
+                $returnTransaction->setUserId($this->userId);
+                $returnTransaction->setBookId($this->bookId);
+                $returnTransaction->setSemesterId($this->semesterId);
+                $returnTransaction->setTransactionType('return');
+                $returnTransaction->setStatus('completed');
                 
-                $result = $this->update();
+                $returnTransaction->insert();
                 
-                if ($result['success']) {
-                    // Create return transaction record
-                    $returnTransaction = new Transaction($this->db);
-                    $returnTransaction->setUserId($this->userId);
-                    $returnTransaction->setBookId($this->bookId);
-                    $returnTransaction->setSemesterId($this->semesterId);
-                    $returnTransaction->setTransactionType('return');
-                    $returnTransaction->setStatus('completed');
-                    
-                    $returnTransaction->insert();
-                    
-                    $this->db->commit();
-                    return $result;
-                } else {
-                    $this->db->rollback();
-                    return $result;
-                }
+                return $result;
             } else {
-                $this->db->rollback();
-                return ['success' => false, 'errors' => ['general' => 'Failed to update book status']];
+                return $result;
             }
             
         } catch (Exception $e) {
-            $this->db->rollback();
             return ['success' => false, 'errors' => ['general' => 'Error processing return: ' . $e->getMessage()]];
         }
     }

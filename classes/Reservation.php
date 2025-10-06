@@ -84,6 +84,12 @@ class Reservation {
             ]);
             
             $this->id = $this->db->lastInsertId();
+            
+            // Update book status to reserved
+            $query = "UPDATE books SET status = 'reserved' WHERE id = ?";
+            $stmt = $this->db->prepare($query);
+            $stmt->execute([$this->bookId]);
+            
             $this->db->commit();
             
             return ['success' => true, 'reservation_id' => $this->id, 'message' => 'Reservation created successfully!'];
@@ -105,6 +111,13 @@ class Reservation {
             $stmt = $this->db->prepare($query);
             $stmt->execute([$this->status, $this->id]);
             
+            // If cancelling reservation, update book status back to available
+            if ($this->status === 'cancelled') {
+                $query = "UPDATE books SET status = 'available' WHERE id = ?";
+                $stmt = $this->db->prepare($query);
+                $stmt->execute([$this->bookId]);
+            }
+            
             $this->db->commit();
             
             return ['success' => true, 'message' => 'Reservation updated successfully!'];
@@ -120,8 +133,6 @@ class Reservation {
      */
     public function createReservation($userId, $bookId, $semesterId) {
         try {
-            $this->db->beginTransaction();
-            
             // Check if book is available
             $query = "SELECT status FROM books WHERE id = ?";
             $stmt = $this->db->prepare($query);
@@ -148,22 +159,9 @@ class Reservation {
             $this->status = 'active';
             
             $result = $this->insert();
-            
-            if ($result['success']) {
-                // Update book status
-                $query = "UPDATE books SET status = 'reserved' WHERE id = ?";
-                $stmt = $this->db->prepare($query);
-                $stmt->execute([$bookId]);
-                
-                $this->db->commit();
-                return $result;
-            } else {
-                $this->db->rollback();
-                return $result;
-            }
+            return $result;
             
         } catch (Exception $e) {
-            $this->db->rollback();
             return ['success' => false, 'errors' => ['general' => 'Error creating reservation: ' . $e->getMessage()]];
         }
     }
@@ -173,27 +171,12 @@ class Reservation {
      */
     public function cancelReservation() {
         try {
-            $this->db->beginTransaction();
-            
             // Update reservation status
             $this->status = 'cancelled';
             $result = $this->update();
-            
-            if ($result['success']) {
-                // Update book status back to available
-                $query = "UPDATE books SET status = 'available' WHERE id = ?";
-                $stmt = $this->db->prepare($query);
-                $stmt->execute([$this->bookId]);
-                
-                $this->db->commit();
-                return $result;
-            } else {
-                $this->db->rollback();
-                return $result;
-            }
+            return $result;
             
         } catch (Exception $e) {
-            $this->db->rollback();
             return ['success' => false, 'errors' => ['general' => 'Error cancelling reservation: ' . $e->getMessage()]];
         }
     }
